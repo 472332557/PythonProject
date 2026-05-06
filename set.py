@@ -1,6 +1,7 @@
 # 集合set，无序不可重复，并且无法修改 ，使用 {}大括号表示
-s1 = {"dog","cat","sheep"}
+s1 = {"dog","cat","sheep",'cat'}
 print(s1)
+print(type(s1))
 
 # 遍历集合
 print("------遍历集合------")

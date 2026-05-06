@@ -1,5 +1,6 @@
 # 字典是一个无序、可变和有索引的集合。用{}表示，使用key、value键值对
 dict1 = {"name":"apple","price":10,"color":"red"}
+print(type(dict1))
 # 获取元素
 print("------获取元素------")
 print(dict1)
@@ -29,6 +30,11 @@ for x in dict1.values():
 print("------获取key、value------")
 for x,y in dict1.items():
     print(x,y)
+
+# 实际上就是元组
+print("一个参数接收，看是什么类型")
+for x in dict1.items():
+    print(x,type(x))
 
 # 判断是否存在key
 print("------判断key是否存在------")

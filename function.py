@@ -1,4 +1,4 @@
-# 函数
+# 函数,使用def定义，接函数名、参数
 def add(param1,param2):
     return param1+param2
 
@@ -18,7 +18,7 @@ def power(x,n):
         n = n-1
         s = s * x
     return s
-print(power(3,4))
+print(power(2,4))
 
 # 默认参数，必须放在必填参数的后边，默认参数一般是不常调用，简化函数
 print("------默认参数------")
@@ -29,6 +29,7 @@ def powerInit(x,n=2):
         s = s * x
     return s
 print(powerInit(5))
+print(powerInit(5,3))
 
 # 可变参数 * + 参数 = 可变参数，*params，可变参数意味着定义函数时，不固定参数的个数，多少都可传递，python会将传入的可变参数封装为一个元组或者列表
 # 计算 1^2 + 2^2 + 3^2

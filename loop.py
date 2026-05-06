@@ -5,20 +5,23 @@ while i < 6:
     print(i)
     i+=1
 
-a = int(input())
+a = int(input("请输入密码："))
 while a != 123456:
     print("密码错误，请重新输入密码！")
     a = int(input())
 print("密码正确")
 
 # break语句，即使条件为真的情况下，也能使循环停止
+print("------break语句------")
 b = 1
 while b < 10:
     print(b)
     if b == 5:
+        print("此时b=",b,"break循环")
         break
     b+=1
 # continue语句
+print("------continue语句------")
 c = 0
 while c < 10:
     c += 1
@@ -26,6 +29,7 @@ while c < 10:
         continue
     print(c)
 
+print("------------for循环------------")
 # for循环用于迭代序列（列表、元组、集合、字典、字符串）
 pets = ['dog','cat','bird']
 for pet in pets:

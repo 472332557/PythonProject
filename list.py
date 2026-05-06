@@ -38,5 +38,5 @@ print("clean清空列表 删除元素但保留列表")
 list1.clear()
 print(list1)
 print("del 删除整个列表")
-# del list1
-# print(list1)
+del list1
+print(list1)
