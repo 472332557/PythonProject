@@ -1,9 +1,10 @@
 """
 LLM API 调用系统主模块
 实现function-calling机制，支持天气查询、新闻聚合、文档读取、Excel知识库等功能
+集成 OpenAI GPT 实现真正的 LLM Function Calling
 """
 
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 from functools import wraps
 import time
 import logging
@@ -23,10 +24,13 @@ from modules.news import news_bp
 from modules.document import document_bp
 from modules.excel_knowledge import excel_bp
 from modules.security import rate_limit, require_api_key
+from modules.llm import chat_with_llm
 
 # 创建Flask应用
 app = Flask(__name__)
 app.config['JSON_AS_ASCII'] = False
+app.template_folder = 'templates'
+app.static_folder = 'static'
 
 # 注册蓝图
 app.register_blueprint(weather_bp, url_prefix='/api/weather')
@@ -35,7 +39,7 @@ app.register_blueprint(document_bp, url_prefix='/api/document')
 app.register_blueprint(excel_bp, url_prefix='/api/excel')
 
 # API版本
-API_VERSION = 'v1.0.0'
+API_VERSION = 'v2.0.0'
 API_PREFIX = '/api/v1'
 
 
@@ -89,19 +93,14 @@ def error_handler(f):
 
 @app.route('/')
 def index():
-    """API首页"""
-    return jsonify({
-        'name': 'LLM API调用系统',
-        'version': API_VERSION,
-        'endpoints': {
-            'weather': f'{API_PREFIX}/weather',
-            'news': f'{API_PREFIX}/news',
-            'document': f'{API_PREFIX}/document',
-            'excel': f'{API_PREFIX}/excel',
-            'function_call': f'{API_PREFIX}/function_call',
-            'docs': f'{API_PREFIX}/docs'
-        }
-    })
+    """API首页 - 返回HTML界面"""
+    return render_template('index.html')
+
+
+@app.route('/web')
+def web_interface():
+    """Web界面"""
+    return render_template('index.html')
 
 
 @app.route(f'{API_PREFIX}/health')
@@ -191,6 +190,70 @@ def _call_excel(params):
     return query_excel_data(file_path, query)
 
 
+@app.route(f'{API_PREFIX}/chat', methods=['POST'])
+@error_handler
+def chat():
+    """
+    LLM 聊天接口 - 实现真正的 Function Calling
+
+    Request Body:
+        {
+            "message": "深圳天气怎么样？",
+            "model": "gpt-4o",  // 可选，默认 gpt-4o
+            "history": []       // 可选的对话历史
+        }
+
+    Response:
+        {
+            "code": 200,
+            "message": "success",
+            "data": {
+                "response": "深圳今天天气...",
+                "function_calls": [
+                    {
+                        "name": "get_weather",
+                        "arguments": {"city": "深圳"},
+                        "result": {...}
+                    }
+                ],
+                "history": [...]
+            }
+        }
+    """
+    data = request.get_json()
+    if not data or 'message' not in data:
+        return jsonify({
+            'code': 400,
+            'message': '缺少message参数',
+            'data': None
+        }), 400
+
+    message = data['message']
+    model = data.get('model', 'gpt-4o')
+    history = data.get('history', [])
+
+    # 获取 API 密钥（优先从请求中获取，其次从环境变量）
+    api_key = data.get('api_key') or os.getenv('OPENAI_API_KEY')
+    base_url = data.get('base_url') or os.getenv('OPENAI_BASE_URL')
+
+    logger.info(f"Chat请求 - 模型: {model}, 消息: {message[:50]}...")
+
+    # 调用 LLM
+    result = chat_with_llm(
+        message=message,
+        model=model,
+        history=history,
+        api_key=api_key,
+        base_url=base_url
+    )
+
+    return jsonify({
+        'code': 200,
+        'message': 'success',
+        'data': result
+    })
+
+
 @app.route(f'{API_PREFIX}/docs')
 def api_docs():
     """API文档"""
@@ -260,14 +323,19 @@ def api_docs():
 
 
 if __name__ == '__main__':
-    print(f"启动 LLM API 调用系统 v{API_VERSION}")
+    print(f"启动 LLM API 调用系统 v{API_VERSION.replace('v', '')}")
     print("=" * 50)
     print("可用端点:")
+    print(f"  - Web界面: GET /")
+    print(f"  - LLM对话: POST /api/v1/chat")
     print(f"  - 天气查询: POST /api/v1/weather")
     print(f"  - 新闻聚合: POST /api/v1/news")
     print(f"  - 文档读取: POST /api/v1/document/read")
     print(f"  - Excel查询: POST /api/v1/excel/query")
-    print(f"  - Function Call: POST /api/v1/function_call")
     print(f"  - API文档: GET /api/v1/docs")
+    print("=" * 50)
+    print("! 请设置 OPENAI_API_KEY 环境变量以启用 LLM Function Calling")
+    print("   Windows: set OPENAI_API_KEY=your-key")
+    print("   Linux/Mac: export OPENAI_API_KEY=your-key")
     print("=" * 50)
     app.run(host='0.0.0.0', port=5000, debug=True)

@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLM API 调用系统</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🤖 LLM Function Calling 演示系统</h1>
+            <p class="subtitle">基于 GPT-4o 的智能助手</p>
+        </header>
+
+        <div class="main-content">
+            <div class="chat-container" id="chatContainer">
+                <div class="welcome-message">
+                    <p>👋 您好！我是您的智能助手。</p>
+                    <p>我可以帮您：</p>
+                    <ul>
+                        <li>🌤️ <strong>查询天气</strong> - 例如："深圳天气怎么样？"</li>
+                        <li>📰 <strong>获取新闻</strong> - 例如："今天有什么科技新闻？"</li>
+                        <li>📄 <strong>读取文档</strong> - 例如："帮我读取这份PDF"</li>
+                        <li>📊 <strong>分析Excel</strong> - 例如："分析这个销售数据"</li>
+                    </ul>
+                    <p class="hint">请在下方输入您的问题开始对话</p>
+                </div>
+            </div>
+
+            <div class="input-area">
+                <div class="model-select">
+                    <label for="model">模型：</label>
+                    <select id="model">
+                        <option value="moonshot-v1-8k">Kimi (8K)</option>
+                        <option value="moonshot-v1-32k">Kimi (32K)</option>
+                        <option value="moonshot-v1-128k">Kimi (128K)</option>
+                    </select>
+                </div>
+                <div class="input-wrapper">
+                    <textarea id="userInput" placeholder="输入您的问题..." rows="3"></textarea>
+                    <button id="sendBtn" onclick="sendMessage()">发送</button>
+                </div>
+                <div class="function-status" id="functionStatus"></div>
+            </div>
+        </div>
+
+        <div class="functions-panel">
+            <h3>🛠️ 可用工具</h3>
+            <div class="function-list">
+                <div class="function-item">
+                    <span class="function-name">get_weather</span>
+                    <span class="function-desc">查询城市天气</span>
+                </div>
+                <div class="function-item">
+                    <span class="function-name">get_news</span>
+                    <span class="function-desc">获取热门新闻</span>
+                </div>
+                <div class="function-item">
+                    <span class="function-name">read_document</span>
+                    <span class="function-desc">读取文档内容</span>
+                </div>
+                <div class="function-item">
+                    <span class="function-name">query_excel</span>
+                    <span class="function-desc">查询分析Excel</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let conversationHistory = [];
+
+        async function sendMessage() {
+            const userInput = document.getElementById('userInput');
+            const chatContainer = document.getElementById('chatContainer');
+            const functionStatus = document.getElementById('functionStatus');
+            const model = document.getElementById('model').value;
+            const message = userInput.value.trim();
+
+            if (!message) return;
+
+            // 添加用户消息
+            addMessage('user', message);
+            userInput.value = '';
+
+            // 显示正在思考
+            const thinkingId = addThinkingMessage();
+
+            try {
+                const response = await fetch('/api/v1/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        message: message,
+                        model: model,
+                        history: conversationHistory
+                    })
+                });
+
+                const data = await response.json();
+
+                // 移除思考中消息
+                removeMessage(thinkingId);
+
+                if (data.code === 200) {
+                    // 添加助手回复
+                    addMessage('assistant', data.data.response);
+
+                    // 如果有函数调用，显示过程
+                    if (data.data.function_calls && data.data.function_calls.length > 0) {
+                        showFunctionCalls(data.data.function_calls);
+                    }
+
+                    // 更新对话历史
+                    conversationHistory = data.data.history || [];
+                } else {
+                    addMessage('error', '错误: ' + data.message);
+                }
+            } catch (error) {
+                removeMessage(thinkingId);
+                addMessage('error', '请求失败: ' + error.message);
+            }
+        }
+
+        function addMessage(type, content) {
+            const chatContainer = document.getElementById('chatContainer');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message message-${type}`;
+
+            if (type === 'user') {
+                messageDiv.innerHTML = `<div class="message-content">${escapeHtml(content)}</div>`;
+            } else if (type === 'assistant') {
+                messageDiv.innerHTML = `<div class="message-content">${formatMarkdown(content)}</div>`;
+            } else if (type === 'error') {
+                messageDiv.innerHTML = `<div class="message-content error">${escapeHtml(content)}</div>`;
+            }
+
+            chatContainer.appendChild(messageDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+            return messageDiv.id || messageDiv;
+        }
+
+        function addThinkingMessage() {
+            const chatContainer = document.getElementById('chatContainer');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message message-thinking';
+            messageDiv.innerHTML = `
+                <div class="thinking-indicator">
+                    <span>🤔 思考中...</span>
+                </div>
+            `;
+            chatContainer.appendChild(messageDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+            return messageDiv.innerHTML || 'thinking';
+        }
+
+        function removeMessage(identifier) {
+            const messages = document.querySelectorAll('.message-thinking');
+            messages.forEach(msg => msg.remove());
+        }
+
+        function showFunctionCalls(calls) {
+            const functionStatus = document.getElementById('functionStatus');
+            let html = '<div class="function-calls">';
+            calls.forEach(call => {
+                html += `
+                    <div class="function-call">
+                        <span class="call-icon">🔧</span>
+                        <span class="call-name">${call.name}</span>
+                        <span class="call-args">${JSON.stringify(call.arguments)}</span>
+                        <span class="call-result">→ ${call.result}</span>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            functionStatus.innerHTML = html;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function formatMarkdown(text) {
+            // 简单的markdown格式化
+            return escapeHtml(text)
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                .replace(/\n/g, '<br>');
+        }
+
+        // 支持 Enter 发送，Shift+Enter 换行
+        document.getElementById('userInput').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+    </script>
+</body>
+</html>
